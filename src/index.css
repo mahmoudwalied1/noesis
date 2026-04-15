@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply font-inter antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-montserrat;
+  }
+}
+
+@layer utilities {
+  .glass-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10;
+  }
+  
+  .glass-card-light {
+    @apply bg-white/80 backdrop-blur-xl border border-white/20;
+  }
+  
+  .neon-glow-cyan {
+    box-shadow: 0 0 20px rgba(84, 172, 191, 0.5), 0 0 40px rgba(84, 172, 191, 0.3);
+  }
+  
+  .neon-glow-purple {
+    box-shadow: 0 0 20px rgba(110, 43, 191, 0.5), 0 0 40px rgba(110, 43, 191, 0.3);
+  }
+  
+  .cosmic-gradient {
+    background: linear-gradient(135deg, #050B18 0%, #0F1C3A 50%, #1a2847 100%);
+  }
+  
+  .nebula-gradient {
+    background: linear-gradient(135deg, #6E2BBF 0%, #54ACBF 100%);
+  }
+  
+  .plasma-glow {
+    background: radial-gradient(circle at center, rgba(84, 172, 191, 0.2) 0%, transparent 70%);
+  }
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #050B18;
+  color: #ffffff;
+  overflow-x: hidden;
+}
+
+/* Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0F1C3A;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #54ACBF 0%, #6E2BBF 100%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #6E2BBF 0%, #54ACBF 100%);
+}
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-20px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-float {
+  animation: float 6s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 3s ease-in-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 20s linear infinite;
+}
