@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { login, register, storeSession } from '../../lib/api/auth';
 
 type AuthMode = 'login' | 'signup' | 'forgot';
 
@@ -15,42 +16,62 @@ export default function Auth() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const validateForm = () => {
+    const trimmedEmail = email.trim();
+    const trimmedName = name.trim();
+
+    if (!trimmedEmail) return 'Email is required';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) return 'Enter a valid email address';
+
+    if (mode === 'forgot') return '';
+
+    if (!password) return 'Password is required';
+    if (mode === 'signup' && password.length < 8) return 'Password must be at least 8 characters';
+    if (mode === 'signup' && trimmedName.length < 2) return 'Full name must be at least 2 characters';
+    if (mode === 'signup' && password !== confirmPassword) return 'Passwords do not match';
+
+    return '';
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
-    if (mode === 'signup' && password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (password.length < 6 && mode !== 'forgot') {
-      setError('Password must be at least 6 characters');
+    const validationError = validateForm();
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
     setIsLoading(true);
 
-    // Simulate API call
-    setTimeout(() => {
+    if (mode === 'forgot') {
+      setSuccess('Password reset is not available yet. Contact support to reset your password.');
       setIsLoading(false);
-      if (mode === 'forgot') {
-        setSuccess('Password reset link sent to your email!');
-        setTimeout(() => setMode('login'), 2000);
-      } else {
-        navigate('/splash');
+      return;
+    }
+
+    try {
+      const auth =
+        mode === 'login'
+          ? await login(email.trim(), password)
+          : await register(name.trim(), email.trim(), password);
+
+      storeSession(auth);
+      if (mode === 'signup') {
+        setSuccess('Account created successfully.');
       }
-    }, 1500);
+      navigate('/splash');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Authentication failed');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSocialLogin = (provider: string) => {
-    setIsLoading(true);
-    // Simulate social login
-    setTimeout(() => {
-      setIsLoading(false);
-      navigate('/splash');
-    }, 1000);
+    setError(`${provider} sign-in is not configured yet. Use email and password.`);
   };
 
   return (

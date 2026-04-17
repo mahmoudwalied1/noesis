@@ -1,0 +1,401 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum IngestionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum QuizQuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SHORT_ANSWER
+}
+
+enum StudyPlanItemStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  SKIPPED
+}
+
+enum ContentReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ModerationFlagStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+model User {
+  id              String            @id @default(cuid())
+  email           String            @unique
+  passwordHash    String
+  displayName     String
+  avatarUrl       String?
+  bio             String?
+  isActive        Boolean           @default(true)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  roles           Role[]            @relation("UserRoles")
+  refreshTokens   RefreshToken[]
+  auditLogs       AuditLog[]        @relation("AuditActor")
+  documents       Document[]
+  chatSessions    ChatSession[]
+  quizAttempts    QuizAttempt[]
+  flashcardDecks  FlashcardDeck[]
+  studyPlans      StudyPlan[]
+  progress        UserProgress[]
+  studyEvents     StudyEvent[]
+  contentReviews  ContentReview[]   @relation("ContentReviewReviewer")
+  moderationFlags ModerationFlag[]  @relation("ModerationFlagReporter")
+  adminActions    AdminActionLog[]  @relation("AdminActionActor")
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  users     User[]   @relation("UserRoles")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+}
+
+model Subject {
+  id          String         @id @default(cuid())
+  name        String
+  slug        String         @unique
+  description String?
+  order       Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  topics      Topic[]
+  documents   Document[]
+  quizzes     Quiz[]
+  decks       FlashcardDeck[]
+  progress    UserProgress[]
+}
+
+model Topic {
+  id          String         @id @default(cuid())
+  subjectId   String
+  subject     Subject        @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  name        String
+  slug        String         @unique
+  description String?
+  order       Int            @default(0)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  concepts    Concept[]
+  documents   Document[]
+  quizzes     Quiz[]
+  decks       FlashcardDeck[]
+  progress    UserProgress[]
+}
+
+model Concept {
+  id                 String                 @id @default(cuid())
+  topicId            String
+  topic              Topic                  @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  name               String
+  slug               String                 @unique
+  description        String?
+  order              Int                    @default(0)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  prerequisites      PrerequisiteRelation[] @relation("ConceptPrerequisites")
+  requiredBy         PrerequisiteRelation[] @relation("ConceptRequiredBy")
+  documents          Document[]
+  chatSessions       ChatSession[]
+  quizzes            Quiz[]
+  decks              FlashcardDeck[]
+  progress           UserProgress[]
+  studyPlanItems     StudyPlanItem[]
+}
+
+model PrerequisiteRelation {
+  id                    String  @id @default(cuid())
+  conceptId             String
+  prerequisiteConceptId String
+  concept               Concept @relation("ConceptPrerequisites", fields: [conceptId], references: [id], onDelete: Cascade)
+  prerequisiteConcept   Concept @relation("ConceptRequiredBy", fields: [prerequisiteConceptId], references: [id], onDelete: Cascade)
+
+  @@unique([conceptId, prerequisiteConceptId])
+}
+
+model Document {
+  id            String          @id @default(cuid())
+  ownerId       String
+  owner         User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  subjectId     String?
+  subject       Subject?        @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  topicId       String?
+  topic         Topic?          @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  conceptId     String?
+  concept       Concept?        @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  title         String
+  sourceType    String
+  originalName  String?
+  mimeType      String?
+  storagePath   String?
+  manualText    String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  chunks        DocumentChunk[]
+  ingestionJobs IngestionJob[]
+  chatSessions  ChatSession[]
+}
+
+model DocumentChunk {
+  id          String   @id @default(cuid())
+  documentId  String
+  document    Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  chunkIndex  Int
+  text        String
+  tokenCount  Int?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@unique([documentId, chunkIndex])
+}
+
+model IngestionJob {
+  id         String          @id @default(cuid())
+  documentId String
+  document   Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  bullJobId  String?
+  status     IngestionStatus @default(PENDING)
+  progress   Int             @default(0)
+  error      String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+}
+
+model ChatSession {
+  id         String        @id @default(cuid())
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documentId String?
+  document   Document?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  conceptId  String?
+  concept    Concept?      @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  title      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  messages   ChatMessage[]
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      ChatRole
+  content   String
+  metadata  Json?
+  createdAt DateTime    @default(now())
+}
+
+model Quiz {
+  id          String         @id @default(cuid())
+  subjectId   String?
+  subject     Subject?       @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  topicId     String?
+  topic       Topic?         @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  conceptId   String?
+  concept     Concept?       @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  title       String
+  difficulty  String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  questions   QuizQuestion[]
+  attempts    QuizAttempt[]
+}
+
+model QuizQuestion {
+  id            String           @id @default(cuid())
+  quizId        String
+  quiz          Quiz             @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  type          QuizQuestionType
+  prompt        String
+  choices       Json?
+  correctAnswer String
+  explanation   String?
+  difficulty    String?
+  order         Int              @default(0)
+  answers       QuizAnswer[]
+}
+
+model QuizAttempt {
+  id          String       @id @default(cuid())
+  quizId      String
+  quiz        Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  score       Float?
+  startedAt   DateTime     @default(now())
+  completedAt DateTime?
+  answers     QuizAnswer[]
+}
+
+model QuizAnswer {
+  id         String       @id @default(cuid())
+  attemptId  String
+  attempt    QuizAttempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  questionId String
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answer     String
+  isCorrect  Boolean?
+  createdAt  DateTime     @default(now())
+}
+
+model FlashcardDeck {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectId String?
+  subject   Subject?    @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  topicId   String?
+  topic     Topic?      @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  conceptId String?
+  concept   Concept?    @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  title     String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  cards     Flashcard[]
+}
+
+model Flashcard {
+  id        String        @id @default(cuid())
+  deckId    String
+  deck      FlashcardDeck @relation(fields: [deckId], references: [id], onDelete: Cascade)
+  front     String
+  back      String
+  hint      String?
+  metadata  Json?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model StudyPlan {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  items       StudyPlanItem[]
+}
+
+model StudyPlanItem {
+  id          String              @id @default(cuid())
+  studyPlanId String
+  studyPlan   StudyPlan           @relation(fields: [studyPlanId], references: [id], onDelete: Cascade)
+  conceptId   String?
+  concept     Concept?            @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  title       String
+  status      StudyPlanItemStatus @default(TODO)
+  dueAt       DateTime?
+  order       Int                 @default(0)
+}
+
+model UserProgress {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subjectId String?
+  subject   Subject? @relation(fields: [subjectId], references: [id], onDelete: SetNull)
+  topicId   String?
+  topic     Topic?   @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  conceptId String?
+  concept   Concept? @relation(fields: [conceptId], references: [id], onDelete: SetNull)
+  mastery   Float    @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, subjectId, topicId, conceptId])
+}
+
+model StudyEvent {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventType String
+  targetType String?
+  targetId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
+
+model ContentReview {
+  id          String              @id @default(cuid())
+  contentType String
+  contentId   String
+  reviewerId  String?
+  reviewer    User?               @relation("ContentReviewReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  status      ContentReviewStatus @default(PENDING)
+  notes       String?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+}
+
+model ModerationFlag {
+  id         String               @id @default(cuid())
+  reporterId String?
+  reporter   User?                @relation("ModerationFlagReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+  targetType String
+  targetId   String
+  reason     String
+  status     ModerationFlagStatus @default(OPEN)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+}
+
+model AdminActionLog {
+  id         String   @id @default(cuid())
+  adminId    String?
+  admin      User?    @relation("AdminActionActor", fields: [adminId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String
+  targetId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+}
